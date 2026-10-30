@@ -1,0 +1,47 @@
+# Simula un VPS Hetzner CX22 (2 vCPU, 4 GB RAM) con nginx + app Python + PostgreSQL
+name: hetzner-sim
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hetzner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hetzner}
+      POSTGRES_DB: ${POSTGRES_DB:-hetzner_sim}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hetzner}"]
+      interval: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 1g }
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-hetzner}:${POSTGRES_PASSWORD:-hetzner}@db:5432/${POSTGRES_DB:-hetzner_sim}
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "1.25", memory: 2.5g }
+
+  nginx:
+    image: nginx:1.27
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 256m }
+
+volumes:
+  pgdata:
